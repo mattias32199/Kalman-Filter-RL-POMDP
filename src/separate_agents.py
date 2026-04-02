@@ -1,15 +1,18 @@
 from ekf import DifferentiableEKF
 from rl import Actor, Critic, ReplayBuffer
 
-# EKF-TD3 Agent (jointly optimized /  end-to-end)
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
 
-class Joint_TD3_EKF_Agent:
+class Separate_TD3_EKF_Agent:
     """
-    TD3 with differentiable EKF front-end.
+    TD3 with separately optimized EKF front-end.
 
-    Key fix: during the actor update, the EKF is re-run over stored
-    observation sequences WITH gradients enabled, creating a live
-    computation graph from Q/R → EKF states → actor → Q-value.
+    EKF noise parameters Q and R are optimized via state estimation MSE loss
+    (train_ekf_step), independent of the TD3 policy update (train_step).
+    Gradients from the actor never flow back through the EKF — the filter
+    is frozen during all TD3 updates.
     """
 
     def __init__(
@@ -25,6 +28,7 @@ class Joint_TD3_EKF_Agent:
         seq_len=16,
         lr_actor=3e-4,
         lr_critic=3e-4,
+        lr_ekf=3e-4,
     ):
         self.ekf = DifferentiableEKF().to(device)
         self.actor = Actor(ekf_input_dim, hidden_dim, max_action).to(device)
@@ -33,10 +37,12 @@ class Joint_TD3_EKF_Agent:
         self.actor_target = copy.deepcopy(self.actor)
         self.critic_target = copy.deepcopy(self.critic)
 
-        # EKF params in actor optimizer for end-to-end gradients
+        # 3 optimizers
+        self.ekf_optimizer = torch.optim.Adam(
+            self.ekf.parameters(), lr=lr_ekf
+        )
         self.actor_optimizer = torch.optim.Adam(
-            list(self.actor.parameters()) + list(self.ekf.parameters()),
-            lr=lr_actor,
+            self.actor.parameters(), lr=lr_actor  # no ekf.parameters() here
         )
         self.critic_optimizer = torch.optim.Adam(
             self.critic.parameters(), lr=lr_critic
@@ -57,7 +63,7 @@ class Joint_TD3_EKF_Agent:
         self.x_est = None
         self.P_est = None
 
-    # ── Data collection (single-env, no gradients) ───────────────
+    # Data collection (single-env, no gradients)
 
     def reset_ekf(self, obs):
         z = torch.tensor(obs, dtype=torch.float32, device=device)
@@ -78,9 +84,9 @@ class Joint_TD3_EKF_Agent:
             u = torch.tensor(action, dtype=torch.float32, device=device).squeeze()
             self.x_est, self.P_est = self.ekf(z, u, self.x_est, self.P_est)
 
-    def store_transition(self, obs, action, reward, done):
+    def store_transition(self, obs, action, reward, done, true_state):
         """Store raw observation — NOT detached EKF state."""
-        self.replay_buffer.push(obs, action, reward, done)
+        self.replay_buffer.push(obs, action, reward, done, true_state)
 
     # ── EKF unrolling over sequences ─────────────────────────────
 
@@ -113,28 +119,49 @@ class Joint_TD3_EKF_Agent:
 
     # ── Training ─────────────────────────────────────────────────
 
+    def train_ekf_step(self, batch_size=32):
+        if not self.replay_buffer.ready(batch_size):
+            return {}
+
+        obs_seq, act_seq, _, _, true_seq = self.replay_buffer.sample(
+            batch_size, self.seq_len
+        )
+        # true_seq: (B, T, 2) — [theta, theta_dot]
+
+        ekf_states = self._unroll_ekf(obs_seq, act_seq, with_grad=True)
+        x_est = ekf_states[:, :, :2]                        # (B, T, 2)
+
+        estimation_loss = F.mse_loss(x_est, true_seq)
+
+        self.ekf_optimizer.zero_grad()
+        estimation_loss.backward()
+        torch.nn.utils.clip_grad_norm_(self.ekf.parameters(), max_norm=1.0)
+        self.ekf_optimizer.step()
+
+        return {
+            "estimation_loss": estimation_loss.item(),
+            "Q_learned": self.ekf.Q.detach().cpu().numpy().tolist(),
+            "R_learned": self.ekf.R.detach().cpu().numpy().tolist(),
+        }
+
     def train_step(self, batch_size=32):
         if not self.replay_buffer.ready(batch_size):
             return {}
 
-        obs_seq, act_seq, rew_seq, done_seq = self.replay_buffer.sample(
+        obs_seq, act_seq, rew_seq, done_seq, _ = self.replay_buffer.sample(
             batch_size, self.seq_len
         )
-        # obs_seq: (B, T, 2), act_seq: (B, T, 1), rew/done: (B, T)
 
-        # ── Unroll EKF without gradients → get states for critic ──
+        # EKF always frozen during TD3 updates — no with_grad=True here
         ekf_states = self._unroll_ekf(obs_seq, act_seq, with_grad=False)
-        # ekf_states: (B, T, 4)
 
-        # Build transitions from consecutive timesteps: t → t+1
-        # This gives us (T-1) transitions per sequence
-        states      = ekf_states[:, :-1].reshape(-1, 4)    # (B*(T-1), 4)
-        next_states = ekf_states[:, 1:].reshape(-1, 4)     # (B*(T-1), 4)
-        actions     = act_seq[:, :-1].reshape(-1, 1)        # (B*(T-1), 1)
-        rewards     = rew_seq[:, :-1].reshape(-1, 1)        # (B*(T-1), 1)
-        dones       = done_seq[:, :-1].reshape(-1, 1)       # (B*(T-1), 1)
+        states      = ekf_states[:, :-1].reshape(-1, 4)
+        next_states = ekf_states[:, 1:].reshape(-1, 4)
+        actions     = act_seq[:, :-1].reshape(-1, 1)
+        rewards     = rew_seq[:, :-1].reshape(-1, 1)
+        dones       = done_seq[:, :-1].reshape(-1, 1)
 
-        # ── Critic update (standard TD3, no EKF gradients) ──
+        # ── Critic update — IDENTICAL ────────────────────────────
         with torch.no_grad():
             noise = (torch.randn_like(actions) * self.policy_noise).clamp(
                 -self.noise_clip, self.noise_clip
@@ -154,37 +181,22 @@ class Joint_TD3_EKF_Agent:
 
         info = {"critic_loss": critic_loss.item()}
 
-        # ── Actor + EKF update (WITH gradients through EKF) ──
+        # ── Actor update — no EKF gradient, actor only ───────────
         self.total_updates += 1
         if self.total_updates % self.policy_delay == 0:
 
-            # Re-run EKF with live computation graph
-            live_states = self._unroll_ekf(obs_seq, act_seq, with_grad=True)
-            live_states = live_states.reshape(-1, 4)        # (B*T, 4)
-
-            actor_actions = self.actor(live_states)
-            actor_loss = -self.critic.Q1(live_states, actor_actions).mean()
+            actor_actions = self.actor(states)
+            actor_loss = -self.critic.Q1(states, actor_actions).mean()
 
             self.actor_optimizer.zero_grad()
             actor_loss.backward()
-
-            # Clip EKF gradients for stability
-            torch.nn.utils.clip_grad_norm_(self.ekf.parameters(), max_norm=1.0)
-
             self.actor_optimizer.step()
 
-            # Soft-update targets
             for p, tp in zip(self.actor.parameters(), self.actor_target.parameters()):
                 tp.data.copy_(self.tau * p.data + (1 - self.tau) * tp.data)
             for p, tp in zip(self.critic.parameters(), self.critic_target.parameters()):
                 tp.data.copy_(self.tau * p.data + (1 - self.tau) * tp.data)
 
             info["actor_loss"] = actor_loss.item()
-            info["Q_learned"] = self.ekf.Q.detach().cpu().numpy().tolist()
-            info["R_learned"] = self.ekf.R.detach().cpu().numpy().tolist()
-
-            # Verify gradients are flowing (useful for debugging)
-            q_grad = self.ekf.q_log_diag.grad
-            info["ekf_grad_norm"] = q_grad.norm().item() if q_grad is not None else 0.0
 
         return info

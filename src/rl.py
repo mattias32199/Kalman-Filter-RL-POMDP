@@ -1,3 +1,4 @@
+# rl.py
 # actor and critic for td3
 
 class Actor(nn.Module):
@@ -60,7 +61,7 @@ class ReplayBuffer:
         self.episodes = deque(maxlen=capacity)  # completed episodes
         self.current_episode = []               # episode in progress
 
-    def push(self, obs, action, reward, done):
+    def push(self, obs, action, reward, done, true_state=None):
         """Store a single transition. Automatically segments into episodes."""
         self.current_episode.append((
             np.array(obs, dtype=np.float32),
@@ -82,7 +83,7 @@ class ReplayBuffer:
             rew_seq:  (B, T)            rewards
             done_seq: (B, T)            done flags
         """
-        batch_obs, batch_act, batch_rew, batch_done = [], [], [], []
+        batch_obs, batch_act, batch_rew, batch_done, batch_true = [], [], [], [], []
 
         for _ in range(batch_size):
             ep = random.choice(self.episodes)
@@ -102,12 +103,14 @@ class ReplayBuffer:
             batch_act.append(torch.tensor(np.stack(act_s)))
             batch_rew.append(torch.tensor(rew_s))
             batch_done.append(torch.tensor(done_s))
+            batch_true.append(torch.tensor(np.stack(true_s)))
 
         return (
             torch.stack(batch_obs).to(device),   # (B, T, obs_dim)
             torch.stack(batch_act).to(device),   # (B, T, act_dim)
             torch.stack(batch_rew).to(device),   # (B, T)
             torch.stack(batch_done).to(device),  # (B, T)
+            torch.stack(batch_true).to(device),   # (B, T, 2)  [theta, theta_dot]
         )
 
     @property
