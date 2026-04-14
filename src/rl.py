@@ -76,6 +76,7 @@ class ReplayBuffer:
             np.array(action, dtype=np.float32).flatten(),
             float(reward),
             float(done),
+            np.array(true_state, dtype=np.float32) if true_state is not None else np.zeros(2, dtype=np.float32)
         ))
         if done:
             self.episodes.append(self.current_episode)
@@ -106,7 +107,7 @@ class ReplayBuffer:
             #     last = subseq[-1]
             #     subseq.append((last[0], last[1], 0.0, 1.0))
 
-            obs_s, act_s, rew_s, done_s = zip(*subseq)
+            obs_s, act_s, rew_s, done_s, true_s = zip(*subseq)
             batch_obs.append(torch.tensor(np.stack(obs_s)))
             batch_act.append(torch.tensor(np.stack(act_s)))
             batch_rew.append(torch.tensor(rew_s))
