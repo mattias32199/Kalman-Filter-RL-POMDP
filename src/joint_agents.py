@@ -125,7 +125,7 @@ class Joint_TD3_EKF_Agent:
         if not self.replay_buffer.ready(batch_size):
             return {}
 
-        obs_seq, act_seq, rew_seq, done_seq = self.replay_buffer.sample(
+        obs_seq, act_seq, rew_seq, done_seq, true_seq = self.replay_buffer.sample(
             batch_size, self.seq_len
         )
         # obs_seq: (B, T, 2), act_seq: (B, T, 1), rew/done: (B, T)
