@@ -65,9 +65,10 @@ class ReplayBuffer:
     Stores complete episodes and samples fixed-length subsequences.
     """
 
-    def __init__(self, capacity=1000):
+    def __init__(self, capacity=1000, device=None):
         self.episodes = deque(maxlen=capacity)  # completed episodes
-        self.current_episode = []               # episode in progress
+        self.current_episode = [] # episode in progress
+        self.device = device
 
     def push(self, obs, action, reward, done, true_state=None):
         """Store a single transition. Automatically segments into episodes."""
@@ -115,11 +116,11 @@ class ReplayBuffer:
             batch_true.append(torch.tensor(np.stack(true_s)))
 
         return (
-            torch.stack(batch_obs).to(device),   # (B, T, obs_dim)
-            torch.stack(batch_act).to(device),   # (B, T, act_dim)
-            torch.stack(batch_rew).to(device),   # (B, T)
-            torch.stack(batch_done).to(device),  # (B, T)
-            torch.stack(batch_true).to(device),   # (B, T, 2)  [theta, theta_dot]
+            torch.stack(batch_obs).to(self.device),   # (B, T, obs_dim)
+            torch.stack(batch_act).to(self.device),   # (B, T, act_dim)
+            torch.stack(batch_rew).to(self.device),   # (B, T)
+            torch.stack(batch_done).to(self.device),  # (B, T)
+            torch.stack(batch_true).to(self.device),   # (B, T, 2)  [theta, theta_dot]
         )
 
     @property

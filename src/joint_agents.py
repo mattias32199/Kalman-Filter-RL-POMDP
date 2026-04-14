@@ -50,7 +50,7 @@ class Joint_TD3_EKF_Agent:
             self.critic.parameters(), lr=lr_critic
         )
 
-        self.replay_buffer = ReplayBuffer()
+        self.replay_buffer = ReplayBuffer(device=self.device)
 
         self.max_action = max_action
         self.discount = discount
