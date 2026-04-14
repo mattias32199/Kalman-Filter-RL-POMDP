@@ -1,6 +1,6 @@
-from env import PartiallyObservablePendulum
-from seprate_agents import Separate_TD3_EKF_Agent
-from jointly_agents import Joint_TD3_EKF_Agent
+from src.env import PartiallyObservablePendulum
+from src.separate_agents import Separate_TD3_EKF_Agent
+from src.jointly_agents import Joint_TD3_EKF_Agent
 
 def train_joint(
     num_episodes=500,
