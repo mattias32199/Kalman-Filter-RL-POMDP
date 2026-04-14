@@ -29,6 +29,7 @@ class Separate_TD3_EKF_Agent:
         lr_actor=3e-4,
         lr_critic=3e-4,
         lr_ekf=3e-4,
+        device=None
     ):
         self.ekf = DifferentiableEKF().to(device)
         self.actor = Actor(ekf_input_dim, hidden_dim, max_action).to(device)

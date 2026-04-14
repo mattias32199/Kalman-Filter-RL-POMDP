@@ -11,9 +11,10 @@ def train_joint(
     noise_std=0.0,
     eval_every=25,
     num_eval_episodes=10,
+    device=None
 ):
     env = PartiallyObservablePendulum(noise_std=noise_std)
-    agent = Joint_TD3_EKF_Agent(max_action=float(env.action_space.high[0])) # Good practice to fetch this from env
+    agent = Joint_TD3_EKF_Agent(max_action=float(env.action_space.high[0]), device=device) # Good practice to fetch this from env
 
     # ── Logging ──
     episode_rewards = []
