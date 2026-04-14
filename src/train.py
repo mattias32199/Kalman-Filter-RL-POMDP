@@ -87,9 +87,10 @@ def train_separate(
     noise_std=0.0,
     eval_every=25,
     num_eval_episodes=10,
+    device=None
 ):
     env = PartiallyObservablePendulum(noise_std=noise_std)
-    agent = Separate_TD3_EKF_Agent(max_action=float(env.action_space.high[0]))
+    agent = Separate_TD3_EKF_Agent(max_action=float(env.action_space.high[0]), device=device)
 
     episode_rewards = []
     eval_rewards = []

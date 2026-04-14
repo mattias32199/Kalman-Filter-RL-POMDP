@@ -4,6 +4,7 @@ from src.rl import Actor, Critic, ReplayBuffer
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import copy
 
 class Separate_TD3_EKF_Agent:
     """
@@ -31,9 +32,10 @@ class Separate_TD3_EKF_Agent:
         lr_ekf=3e-4,
         device=None
     ):
-        self.ekf = DifferentiableEKF().to(device)
-        self.actor = Actor(ekf_input_dim, hidden_dim, max_action).to(device)
-        self.critic = Critic(ekf_input_dim, hidden_dim).to(device)
+        self.device = device
+        self.ekf = DifferentiableEKF().to(self.device)
+        self.actor = Actor(ekf_input_dim, hidden_dim, max_action).to(self.device)
+        self.critic = Critic(ekf_input_dim, hidden_dim).to(self.device)
 
         self.actor_target = copy.deepcopy(self.actor)
         self.critic_target = copy.deepcopy(self.critic)
@@ -49,7 +51,7 @@ class Separate_TD3_EKF_Agent:
             self.critic.parameters(), lr=lr_critic
         )
 
-        self.replay_buffer = ReplayBuffer()
+        self.replay_buffer = ReplayBuffer(device=self.device)
 
         self.max_action = max_action
         self.discount = discount
@@ -67,7 +69,7 @@ class Separate_TD3_EKF_Agent:
     # Data collection (single-env, no gradients)
 
     def reset_ekf(self, obs):
-        z = torch.tensor(obs, dtype=torch.float32, device=device)
+        z = torch.tensor(obs, dtype=torch.float32, device=self.device)
         self.x_est, self.P_est = self.ekf.init_state(z)
 
     def select_action(self, obs, explore_noise=0.1):
@@ -81,8 +83,8 @@ class Separate_TD3_EKF_Agent:
 
     def ekf_step(self, obs, action):
         with torch.no_grad():
-            z = torch.tensor(obs, dtype=torch.float32, device=device)
-            u = torch.tensor(action, dtype=torch.float32, device=device).squeeze()
+            z = torch.tensor(obs, dtype=torch.float32, device=self.device)
+            u = torch.tensor(action, dtype=torch.float32, device=self.device).squeeze()
             self.x_est, self.P_est = self.ekf(z, u, self.x_est, self.P_est)
 
     def store_transition(self, obs, action, reward, done, true_state):
