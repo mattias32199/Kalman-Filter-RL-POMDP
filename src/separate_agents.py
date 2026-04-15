@@ -1,4 +1,4 @@
-from src.ekf import DifferentiableEKF
+from src.pendulum_ekf import DifferentiableEKF
 from src.rl import Actor, Critic, ReplayBuffer
 
 import torch
@@ -68,7 +68,6 @@ class Separate_TD3_EKF_Agent:
         self.P_est = None
 
     # Data collection (single-env, no gradients)
-
     def reset_ekf(self, obs):
         z = torch.tensor(obs, dtype=torch.float32, device=self.device)
         self.x_est, self.P_est = self.ekf.init_state(z)
@@ -92,8 +91,7 @@ class Separate_TD3_EKF_Agent:
         """Store raw observation — NOT detached EKF state."""
         self.replay_buffer.push(obs, action, reward, done, true_state)
 
-    # ── EKF unrolling over sequences ─────────────────────────────
-
+    # EKF unrolling over sequences
     def _unroll_ekf(self, obs_seq, act_seq, with_grad=False):
         """
         Re-run the EKF over batched sequences.
@@ -121,8 +119,7 @@ class Separate_TD3_EKF_Agent:
 
             return torch.stack(all_states, dim=1)            # (B, T, 4)
 
-    # ── Training ─────────────────────────────────────────────────
-
+    # Training
     def train_ekf_step(self, batch_size=32):
         if not self.replay_buffer.ready(batch_size):
             return {}
@@ -159,13 +156,13 @@ class Separate_TD3_EKF_Agent:
         # EKF always frozen during TD3 updates — no with_grad=True here
         ekf_states = self._unroll_ekf(obs_seq, act_seq, with_grad=False)
 
-        states      = ekf_states[:, :-1].reshape(-1, 4)
+        states = ekf_states[:, :-1].reshape(-1, 4)
         next_states = ekf_states[:, 1:].reshape(-1, 4)
-        actions     = act_seq[:, :-1].reshape(-1, 1)
-        rewards     = rew_seq[:, :-1].reshape(-1, 1)
-        dones       = done_seq[:, :-1].reshape(-1, 1)
+        actions = act_seq[:, :-1].reshape(-1, 1)
+        rewards = rew_seq[:, :-1].reshape(-1, 1)
+        dones = done_seq[:, :-1].reshape(-1, 1)
 
-        # ── Critic update — IDENTICAL ────────────────────────────
+        #  Critic update — IDENTICAL
         with torch.no_grad():
             noise = (torch.randn_like(actions) * self.policy_noise).clamp(
                 -self.noise_clip, self.noise_clip

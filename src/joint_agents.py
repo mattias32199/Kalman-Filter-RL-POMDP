@@ -1,4 +1,4 @@
-from src.ekf import DifferentiableEKF
+from src.pendulum_ekf import DifferentiableEKF
 from src.rl import Actor, Critic, ReplayBuffer
 
 import torch
@@ -12,10 +12,6 @@ import numpy as np
 class Joint_TD3_EKF_Agent:
     """
     TD3 with differentiable EKF front-end.
-
-    Key fix: during the actor update, the EKF is re-run over stored
-    observation sequences WITH gradients enabled, creating a live
-    computation graph from Q/R → EKF states → actor → Q-value.
     """
 
     def __init__(
@@ -65,7 +61,7 @@ class Joint_TD3_EKF_Agent:
         self.x_est = None
         self.P_est = None
 
-    # ── Data collection (single-env, no gradients) ───────────────
+    # Data collection (single-env, no gradients)
 
     def reset_ekf(self, obs):
         z = torch.tensor(obs, dtype=torch.float32, device=self.device)
@@ -90,8 +86,7 @@ class Joint_TD3_EKF_Agent:
         """Store raw observation — NOT detached EKF state."""
         self.replay_buffer.push(obs, action, reward, done)
 
-    # ── EKF unrolling over sequences ─────────────────────────────
-
+    # EKF unrolling over sequences
     def _unroll_ekf(self, obs_seq, act_seq, with_grad=False):
         """
         Re-run the EKF over batched sequences.
@@ -119,8 +114,7 @@ class Joint_TD3_EKF_Agent:
 
             return torch.stack(all_states, dim=1)            # (B, T, 4)
 
-    # ── Training ─────────────────────────────────────────────────
-
+    # Training
     def train_step(self, batch_size=32):
         if not self.replay_buffer.ready(batch_size):
             return {}

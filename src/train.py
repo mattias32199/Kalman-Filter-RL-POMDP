@@ -1,7 +1,8 @@
-from src.environment import PartiallyObservablePendulum
+from src.pendulum_env import PartiallyObservablePendulum
 from src.separate_agents import Separate_TD3_EKF_Agent
 from src.joint_agents import Joint_TD3_EKF_Agent
 import numpy as np
+
 
 def train_joint(
     num_episodes=500,
@@ -103,6 +104,9 @@ def train_separate(
 
         for step in range(max_steps):
 
+            full = info["full_state"]                          # [cos θ, sin θ, θ̇] at time t
+            true_state = [np.arctan2(full[1], full[0]), full[2]]
+
             if ep < warmup_episodes:
                 action = env.action_space.sample()
             else:
@@ -111,14 +115,9 @@ def train_separate(
             next_obs, reward, terminated, truncated, info = env.step(action)
             done = terminated or truncated
 
-            # CHANGED: extract true_state from info and pass to store_transition
-            full = info["full_state"]  # [cos(θ), sin(θ), θ̇]
-            true_state = [np.arctan2(full[1], full[0]), full[2]]  # [θ, θ̇]
             agent.store_transition(obs, action, reward, done, true_state)
-
             agent.ekf_step(next_obs, action)
 
-            # CHANGED: call both training steps
             if ep >= warmup_episodes:
                 ekf_info = agent.train_ekf_step(batch_size)
                 td3_info = agent.train_step(batch_size)

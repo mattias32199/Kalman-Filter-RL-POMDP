@@ -1,12 +1,12 @@
 # ekf.py
 # Differentiable Extended Kalman Filter
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 
-class DifferentiableEKF(nn.Module):
+
+class PendulumDiffEKF(nn.Module):
     """
     Extended Kalman Filter with learnable Q and R.
 
@@ -36,8 +36,7 @@ class DifferentiableEKF(nn.Module):
         self.r_log_diag = nn.Parameter(torch.tensor([-1.0, -1.0]))
         self.r_off_diag = nn.Parameter(torch.tensor([0.0]))
 
-    # ── Covariance construction ──────────────────────────────────
-
+    # Covariance construction
     def _build_covariance(self, log_diag, off_diag):
         L = torch.zeros(2, 2, device=log_diag.device)
         L[0, 0] = torch.exp(log_diag[0])
@@ -53,8 +52,7 @@ class DifferentiableEKF(nn.Module):
     def R(self):
         return self._build_covariance(self.r_log_diag, self.r_off_diag)
 
-    # ── Single-env methods (for data collection) ─────────────────
-
+    # Single-env methods (for data collection)
     def dynamics(self, x, u):
         theta, theta_dot = x[0], x[1]
         u_clipped = torch.clamp(u, -self.max_torque, self.max_torque)
