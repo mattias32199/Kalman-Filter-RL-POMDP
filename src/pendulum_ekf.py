@@ -6,7 +6,7 @@ import torch.nn.functional as F
 import numpy as np
 
 
-class PendulumDiffEKF(nn.Module):
+class DifferentiableEKF(nn.Module):
     """
     Extended Kalman Filter with learnable Q and R.
 
