@@ -11,7 +11,7 @@ def set_seed(seed):
     torch.cuda.manual_seed_all(seed)
     torch.backends.cudnn.deterministic = True
 
-def save_data(config, seed, group, policy, rewards, evals, agent):
+def save_data(config, seed, group, policy, rewards, evals, agent, path, noise=0):
     results = {
         "config": config,
         "seed": seed,
@@ -24,11 +24,11 @@ def save_data(config, seed, group, policy, rewards, evals, agent):
     }
 
     # save results
-    with open(f"results/joint_seed{seed}.json", "w") as f:
+    with open(f"{path}/{group}-{policy}-{seed}-{noise}.json", "w") as f:
         json.dump(results, f, indent=2)
 
     # save model
-    save_dir = f"results/{group}-{policy}-noise{config['noise_std']}-seed{seed}"
+    save_dir = f"{path}/{group}-{policy}-{seed}-{noise}"
     os.makedirs(save_dir, exist_ok=True)
 
     # Model weights
