@@ -121,7 +121,7 @@ class Separate_TD3_EKF_Agent:
 
     # Training
     def train_ekf_step(self, batch_size=32):
-        if not self.replay_buffer.ready(batch_size):
+        if not self.replay_buffer.ready(5): # changed from batch_size to 5 (episodes)
             return {}
 
         obs_seq, act_seq, _, _, true_seq = self.replay_buffer.sample(

@@ -127,5 +127,5 @@ class ReplayBuffer:
     def num_episodes(self):
         return len(self.episodes)
 
-    def ready(self, batch_size):
-        return len(self.episodes) >= batch_size
+    def ready(self, min_episodes=5):
+        return len(self.episodes) >= min_episodes
