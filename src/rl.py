@@ -153,9 +153,9 @@ class FlatReplayBuffer:
         return (
             torch.tensor(np.stack(obs)).to(self.device),
             torch.tensor(np.stack(act)).to(self.device),
-            torch.tensor(np.stack(rew)).unsqueeze(-1).to(self.device),
+            torch.tensor(np.stack(rew)).unsqueeze(-1).float().to(self.device),
             torch.tensor(np.stack(next_obs)).to(self.device),
-            torch.tensor(np.stack(done)).unsqueeze(-1).to(self.device),
+            torch.tensor(np.stack(done)).unsqueeze(-1).float().to(self.device),
         )
 
     def ready(self, min_samples=1000):
