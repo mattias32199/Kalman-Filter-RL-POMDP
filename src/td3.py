@@ -1,4 +1,4 @@
-from src.rl import Actor, Critic, FlatReplayBuffer
+from src.rl import Actor, Critic, FlatReplayBuffer, FrameStack
 
 import torch
 import torch.nn.functional as F
@@ -18,6 +18,7 @@ class TD3_Agent:
         obs_dim=3,
         hidden_dim=256,
         max_action=2.0,
+        n_frames=3,
         discount=0.99,
         tau=0.005,
         policy_noise=0.2,
@@ -46,6 +47,9 @@ class TD3_Agent:
             capacity=buffer_capacity, device=self.device
         )
 
+        self.n_frames = n_frames
+        self.frame_stack = FrameStack(n_frames)
+
         self.max_action = max_action
         self.discount = discount
         self.tau = tau
@@ -54,10 +58,19 @@ class TD3_Agent:
         self.policy_delay = policy_delay
         self.total_updates = 0
 
-    # ── Data collection ──────────────────────────────────────────
-    def select_action(self, obs, explore_noise=0.1):
+    # DATA COLLECTION
+    # def select_action(self, obs, explore_noise=0.1):
+    #     with torch.no_grad():
+    #         state = torch.tensor(obs, dtype=torch.float32, device=self.device)
+    #         action = self.actor(state).cpu().numpy().flatten()
+    #     if explore_noise > 0:
+    #         action += np.random.normal(0, explore_noise, size=action.shape)
+    #         action = np.clip(action, -self.max_action, self.max_action)
+    #     return action
+
+    def select_action(self, stacked_obs, explore_noise=0.1):
         with torch.no_grad():
-            state = torch.tensor(obs, dtype=torch.float32, device=self.device)
+            state = torch.tensor(stacked_obs, dtype=torch.float32, device=self.device)
             action = self.actor(state).cpu().numpy().flatten()
         if explore_noise > 0:
             action += np.random.normal(0, explore_noise, size=action.shape)
@@ -115,3 +128,7 @@ class TD3_Agent:
             info["actor_loss"] = actor_loss.item()
 
         return info
+
+    def reset(self, obs):
+        "Reset FrameStack at beginning of each episode."
+        return self.frame_stack.reset(obs)

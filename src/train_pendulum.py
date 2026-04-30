@@ -183,13 +183,15 @@ def train_td3(
     eval_every=25,
     num_eval_episodes=10,
     device=None,
-    config=None
+    config=None,
+    n_frames=3
 ):
     env = PartiallyObservablePendulum(noise_std=noise_std)
     agent = TD3_Agent(
         obs_dim=env.observation_space.shape[0],
         max_action=float(env.action_space.high[0]),
         device=device,
+        n_frames=n_frames
     )
 
     episode_rewards = []
@@ -197,6 +199,7 @@ def train_td3(
 
     for ep in range(num_episodes):
         obs, info = env.reset()
+        stacked_obs = agent.reset(obs)       # ← initialize stack
         ep_reward = 0
 
         for step in range(max_steps):
@@ -204,17 +207,20 @@ def train_td3(
             if ep < warmup_episodes:
                 action = env.action_space.sample()
             else:
-                action = agent.select_action(obs, explore_noise=explore_noise)
+                action = agent.select_action(stacked_obs, explore_noise=explore_noise)
 
             next_obs, reward, terminated, truncated, info = env.step(action)
             done = terminated or truncated
 
-            agent.store_transition(obs, action, reward, next_obs, done)
+            next_stacked_obs = agent.frame_stack.step(next_obs) # stack new obs
+
+            agent.store_transition(obs, action, reward, next_stacked_obs, done)
 
             if ep >= warmup_episodes:
                 train_info = agent.train_step(batch_size)
 
             obs = next_obs
+            stacked_obs = next_stacked_obs
             ep_reward += reward
 
             if done:

@@ -160,3 +160,21 @@ class FlatReplayBuffer:
 
     def ready(self, min_samples=1000):
         return len(self.buffer) >= min_samples
+
+
+class FrameStack:
+    def __init__(self, n_frames=3):
+        self.n_frames = n_frames
+        self.frames = deque(maxlen=n_frames)
+
+    def reset(self, obs):
+        for _ in range(self.n_frames):
+            self.frames.append(obs)
+        return self._get_obs()
+
+    def step(self, obs):
+        self.frames.append(obs)
+        return self._get_obs()
+
+    def _get_obs(self):
+        return np.concatenate(list(self.frames))
