@@ -129,3 +129,34 @@ class ReplayBuffer:
 
     def ready(self, min_episodes=5):
         return len(self.episodes) >= min_episodes
+
+
+class FlatReplayBuffer:
+    """Standard flat (s, a, r, s', done) buffer for vanilla TD3."""
+
+    def __init__(self, capacity=500_000, device=None):
+        self.buffer = deque(maxlen=capacity)
+        self.device = device
+
+    def push(self, obs, action, reward, next_obs, done):
+        self.buffer.append((
+            np.array(obs, dtype=np.float32),
+            np.array(action, dtype=np.float32).flatten(),
+            float(reward),
+            np.array(next_obs, dtype=np.float32),
+            float(done),
+        ))
+
+    def sample(self, batch_size):
+        batch = random.sample(self.buffer, batch_size)
+        obs, act, rew, next_obs, done = zip(*batch)
+        return (
+            torch.tensor(np.stack(obs)).to(self.device),
+            torch.tensor(np.stack(act)).to(self.device),
+            torch.tensor(np.stack(rew)).unsqueeze(-1).to(self.device),
+            torch.tensor(np.stack(next_obs)).to(self.device),
+            torch.tensor(np.stack(done)).unsqueeze(-1).to(self.device),
+        )
+
+    def ready(self, min_samples=1000):
+        return len(self.buffer) >= min_samples
