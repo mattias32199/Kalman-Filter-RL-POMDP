@@ -214,7 +214,7 @@ def train_td3(
 
             next_stacked_obs = agent.frame_stack.step(next_obs) # stack new obs
 
-            agent.store_transition(obs, action, reward, next_stacked_obs, done)
+            agent.store_transition(stacked_obs, action, reward, next_stacked_obs, done)
 
             if ep >= warmup_episodes:
                 train_info = agent.train_step(batch_size)
