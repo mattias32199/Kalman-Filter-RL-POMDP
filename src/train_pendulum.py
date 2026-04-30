@@ -245,12 +245,13 @@ def evaluate_td3(env, agent, num_episodes, max_steps):
     total_reward = 0
     for _ in range(num_episodes):
         obs, info = env.reset()
+        stacked_obs = agent.reset(obs) # init stack
         ep_reward = 0
 
         for step in range(max_steps):
-            action = agent.select_action(obs, explore_noise=0.0)
+            action = agent.select_action(stacked_obs, explore_noise=0.0)
             next_obs, reward, terminated, truncated, info = env.step(action)
-            obs = next_obs
+            stacked_obs = agent.frame_stack.step(next_obs)  # ← advance stack
             ep_reward += reward
             if terminated or truncated:
                 break
