@@ -30,8 +30,13 @@ class TD3_Agent:
         device=None,
     ):
         self.device = device
-        self.actor = Actor(obs_dim, hidden_dim, max_action).to(self.device)
-        self.critic = Critic(obs_dim, hidden_dim).to(self.device)
+
+        self.n_frames = n_frames
+        self.frame_stack = FrameStack(n_frames)
+        stacked_dim = obs_dim * n_frames
+
+        self.actor = Actor(stacked_dim, hidden_dim, max_action).to(self.device)
+        self.critic = Critic(stacked_dim, hidden_dim).to(self.device)
 
         self.actor_target = copy.deepcopy(self.actor)
         self.critic_target = copy.deepcopy(self.critic)
@@ -46,9 +51,6 @@ class TD3_Agent:
         self.replay_buffer = FlatReplayBuffer(
             capacity=buffer_capacity, device=self.device
         )
-
-        self.n_frames = n_frames
-        self.frame_stack = FrameStack(n_frames)
 
         self.max_action = max_action
         self.discount = discount
