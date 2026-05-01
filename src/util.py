@@ -11,7 +11,7 @@ def set_seed(seed):
     torch.cuda.manual_seed_all(seed)
     torch.backends.cudnn.deterministic = True
 
-def save_data(config, seed, group, policy, rewards, evals, agent, path, noise=0):
+def save_data(config, seed, group, policy, rewards, evals, agent, path, noise=0, is_ekf=True):
     results = {
         "config": config,
         "seed": seed,
@@ -19,9 +19,10 @@ def save_data(config, seed, group, policy, rewards, evals, agent, path, noise=0)
         "policy_type": policy,
         "episode_rewards": rewards,
         "eval_rewards": evals,
-        "final_Q": agent.ekf.Q.detach().cpu().numpy().tolist(),
-        "final_R": agent.ekf.R.detach().cpu().numpy().tolist(),
     }
+    if is_ekf:
+        results["final_Q"] = agent.ekf.Q.detach().cpu().numpy().tolist()
+        results["final_R"] = agent.ekf.R.detach().cpu().numpy().tolist()
 
     # save results
     with open(f"{path}/{group}-{policy}-{seed}-{noise}.json", "w") as f:
