@@ -33,8 +33,14 @@ def save_data(config, seed, group, policy, rewards, evals, agent, path, noise=0,
     os.makedirs(save_dir, exist_ok=True)
 
     # Model weights
-    torch.save({
-        "actor": agent.actor.state_dict(),
-        "critic": agent.critic.state_dict(),
-        "ekf": agent.ekf.state_dict(),
-    }, os.path.join(save_dir, "model.pt"))
+    if is_ekf:
+        torch.save({
+            "actor": agent.actor.state_dict(),
+            "critic": agent.critic.state_dict(),
+            "ekf": agent.ekf.state_dict(),
+        }, os.path.join(save_dir, "model.pt"))
+    else:
+        torch.save({
+            "actor": agent.actor.state_dict(),
+            "critic": agent.critic.state_dict(),
+        }, os.path.join(save_dir, "model.pt"))
